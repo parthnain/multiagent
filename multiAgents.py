@@ -74,7 +74,38 @@ class ReflexAgent(Agent):
         newScaredTimes = [ghostState.scaredTimer for ghostState in newGhostStates]
 
         "*** YOUR CODE HERE ***"
-        return successorGameState.getScore()
+        if successorGameState.isWin():  # if you win on the next state, return a very positive evaluation
+            return 999999
+
+        food_list = newFood.asList()  # declaring list of all food locations
+        food_distances = []  # declaring list to be used to store distances from successor state to food
+        ghost_list = []  # declaring list to be used to store all ghost locations
+        ghost_distances = []
+
+        for food_pos in food_list:  # adding manhattan distances to all food positions to a list
+            dist_f = manhattanDistance(food_pos, newPos)
+            food_distances.append(dist_f)
+        for ghost in newGhostStates:  # adding all ghost positions to a list
+            ghost_list.append(ghost.getPosition())
+        for ghost_pos in ghost_list:  # for each ghost, adding the manhattan distance to ghost to a list
+            dist_g = manhattanDistance(ghost_pos, newPos)
+            ghost_distances.append(dist_g)
+        # if adjusted by just dividing through 9, the evaluation crashes - if adjusted by 999999, it also crashes
+        # 9999 gave valid results every time
+        food_d_score = 9999 / sum(food_distances)  # assign scores (could be invalid depending on the following checks)
+        food_l_score = 9999 / len(food_distances)  # d_score is adjusted distance, and l_score is how much food is left
+
+        if currentGameState.getPacmanPosition() == newPos:
+            return -999999  # if the next state stays in the same place, return a negative evaluation
+
+        for distance in ghost_distances:  # check all the ghosts
+            if distance < 2:  # if the successor is less than 2 squares from the ghost, a very negative eval is given
+                return -999999
+
+        if len(food_distances) == 0:  # if all food has been eaten, the list will be empty
+            return 999999  # very positive evaluation if all food has been eaten
+
+        return food_d_score + food_l_score  # return the score depending on if the food is close or far
 
 def scoreEvaluationFunction(currentGameState):
     """
@@ -135,7 +166,23 @@ class MinimaxAgent(MultiAgentSearchAgent):
         Returns whether or not the game state is a losing state
         """
         "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+        number_ghosts = gameState.getNumAgents() - 1
+
+        def minimum_value(state, depth, agent_index):
+            legal_actions = state.getLegalActions(agent_index)
+            if state.isWin() or state.isLose() or (not legal_actions):
+                return self.evaluationFunction(state)
+            lowest_val = 999999
+            for action in legal_actions:
+                temp_val = maximum_value(state.generateSuccessor(agent_index, action), depth)
+                if(temp_val < lowest_val):
+                    lowest_val = temp_val
+            return lowest_val
+
+        def maximum_value(state, depth):
+
+
+        # util.raiseNotDefined()
 
 class AlphaBetaAgent(MultiAgentSearchAgent):
     """
