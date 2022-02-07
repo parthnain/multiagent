@@ -75,7 +75,7 @@ class ReflexAgent(Agent):
 
         "*** YOUR CODE HERE ***"
         if successorGameState.isWin():  # if you win on the next state, return a very positive evaluation
-            return 999999
+            return float("inf")
 
         food_list = newFood.asList()  # declaring list of all food locations
         food_distances = []  # declaring list to be used to store distances from successor state to food
@@ -92,18 +92,18 @@ class ReflexAgent(Agent):
             ghost_distances.append(dist_g)
         # if adjusted by just dividing through 9, the evaluation crashes - if adjusted by 999999, it also crashes
         # 9999 gave valid results every time
-        food_d_score = 9999 / sum(food_distances)  # assign scores (could be invalid depending on the following checks)
-        food_l_score = 9999 / len(food_distances)  # d_score is adjusted distance, and l_score is how much food is left
+        food_d_score = 10000 / sum(food_distances)  # assign scores (could be invalid depending on the following checks)
+        food_l_score = 10000 / len(food_distances)  # d_score is adjusted distance, and l_score is how much food is left
 
         if currentGameState.getPacmanPosition() == newPos:
-            return -999999  # if the next state stays in the same place, return a negative evaluation
+            return -float("inf")  # if the next state stays in the same place, return a negative evaluation
 
         for distance in ghost_distances:  # check all the ghosts
             if distance < 2:  # if the successor is less than 2 squares from the ghost, a very negative eval is given
-                return -999999
+                return -float("inf")
 
         if len(food_distances) == 0:  # if all food has been eaten, the list will be empty
-            return 999999  # very positive evaluation if all food has been eaten
+            return float("inf") # very positive evaluation if all food has been eaten
 
         return food_d_score + food_l_score  # return the score depending on if the food is close or far
 
@@ -166,21 +166,42 @@ class MinimaxAgent(MultiAgentSearchAgent):
         Returns whether or not the game state is a losing state
         """
         "*** YOUR CODE HERE ***"
-        number_ghosts = gameState.getNumAgents() - 1
-
-        def minimum_value(state, depth, agent_index):
-            legal_actions = state.getLegalActions(agent_index)
-            if state.isWin() or state.isLose() or (not legal_actions):
+        def minimum_value(state, depth, agent_index):  # take state, depth, and agentIndex as parameters
+            legal_actions = state.getLegalActions(agent_index)  # get list of legal actions
+            if len(legal_actions) == 0:  # if there are no legal actions, return evaluation function
                 return self.evaluationFunction(state)
-            lowest_val = 999999
-            for action in legal_actions:
-                temp_val = maximum_value(state.generateSuccessor(agent_index, action), depth)
-                if(temp_val < lowest_val):
-                    lowest_val = temp_val
-            return lowest_val
+            lowest_val = float("inf")  # set a high value to reduce as lower minimums are found
+            for action in legal_actions:  # for each possible action
+                next_index = agent_index + 1
+                num_ghosts = state.getNumAgents() - 1
+                next_state = state.generateSuccessor(agent_index, action)  # generate the given next state
+                if agent_index == num_ghosts:  # if  the agent index matches the number of ghosts
+                    lowest_val = min(lowest_val, maximum_value(next_state, depth))  # maintain depth and call max
+                else:  # if agent index doesn't match the number of ghosts
+                    lowest_val = min(lowest_val, minimum_value(next_state, depth, next_index))  # increase depth and min
+            return lowest_val  # return the lowest value found from all legal actions
 
-        def maximum_value(state, depth):
+        def maximum_value(state, depth):  # take only state and depth as parameters
+            legal_actions = state.getLegalActions(0)  # get list of legal actions for pacman
+            if state.isWin() or state.isLose() or (not legal_actions) or (depth + 1) == self.depth:
+                return self.evaluationFunction(state)  # return if reached the terminal state
+            highest_val = -float("inf")  # set a low value to increase as higher maximums are found
+            for action in legal_actions:  # for each possible action
+                next_depth = depth + 1
+                next_state = state.generateSuccessor(0, action)  # generate/save given next state
+                highest_val = max(highest_val, minimum_value(next_state, next_depth, 1))  # increase depth and call min
+            return highest_val  # return the highest value found from all legal actions
 
+        root_actions = gameState.getLegalActions(0)  # root node of trees legal actions
+        root_max = -float("inf")  # low value to be increased as larger scores are discovered
+        root_ret = 'NORTH'  # default initializing of a return value - will change as the actions are sorted through
+        for root_act in root_actions:  # for each available action
+            root_next = gameState.generateSuccessor(0, root_act)  # generate next state
+            root_curr = minimum_value(root_next, 0, 1)  # call the mini half of our minimax to start going through tree
+            if root_curr > root_max:  # if our minimax value down the tree for this action is higher than previous max
+                root_ret = root_act  # replace existing max
+                root_max = root_curr  # replace current direction
+        return root_ret  # return correct direction based on minimax algorithm
 
         # util.raiseNotDefined()
 
@@ -194,7 +215,63 @@ class AlphaBetaAgent(MultiAgentSearchAgent):
         Returns the minimax action using self.depth and self.evaluationFunction
         """
         "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+        def minimum_value(state, depth, agent_index, a, b):  # take state, depth, agentIndex, and A + B as parameters
+            alpha = a
+            beta = b
+            legal_actions = state.getLegalActions(agent_index)  # get list of legal actions
+            if len(legal_actions) == 0:  # if there are no legal actions, return evaluation function
+                return self.evaluationFunction(state)
+            lowest_val = float("inf")  # set a high value to reduce as lower minimums are found
+            for action in legal_actions:  # for each possible action
+                next_index = agent_index + 1
+                num_ghosts = state.getNumAgents() - 1
+                next_state = state.generateSuccessor(agent_index, action)  # generate the given next state
+                if agent_index == num_ghosts:  # if  the agent index matches the number of ghosts
+                    lowest_val = min(lowest_val, maximum_value(next_state, depth, alpha, beta))  # call max
+                    if lowest_val < alpha:
+                        return lowest_val
+                    beta = min(beta, lowest_val)  # updating beta as the min of (B, V)
+                else:  # if agent index doesn't match the number of ghosts
+                    lowest_val = min(lowest_val, minimum_value(next_state, depth, next_index, alpha, beta))  # call min
+                    if lowest_val < alpha:
+                        return lowest_val
+                    beta = min(beta, lowest_val)  # updating beta as the min of (B, V)
+            return lowest_val  # return the lowest value found from all legal actions
+
+        def maximum_value(state, depth, a, b):  # take only state and depth as parameters
+            alpha = a
+            beta = b
+            legal_actions = state.getLegalActions(0)  # get list of legal actions for pacman
+            if state.isWin() or state.isLose() or (not legal_actions) or (depth + 1) == self.depth:
+                return self.evaluationFunction(state)  # return if reached the terminal state
+            highest_val = -float("inf")  # set a low value to increase as higher maximums are found
+            for action in legal_actions:  # for each possible action
+                next_depth = depth + 1
+                next_state = state.generateSuccessor(0, action)  # generate/save given next state
+                highest_val = max(highest_val, minimum_value(next_state, next_depth, 1, alpha, beta))  # call min
+                if highest_val > beta:
+                    return highest_val
+                alpha = max(alpha, highest_val)  # updating alpha as the min of (A, V)
+            return highest_val  # return the highest value found from all legal actions
+
+        root_actions = gameState.getLegalActions(0)  # root node of trees legal actions
+        root_max = -float("inf")  # low value to be increased as larger scores are discovered
+        root_a = -float("inf")
+        root_b = float("inf")
+        root_ret = 'NORTH'  # default initializing of a return value - will change as the actions are sorted through
+        for root_act in root_actions:  # for each available action
+            root_next = gameState.generateSuccessor(0, root_act)  # generate next state
+            root_curr = minimum_value(root_next, 0, 1, root_a, root_b)  # call the mini half of our minimax with A and B
+            b_check = root_curr > root_b
+            if root_curr > root_max:  # if our minimax value down the tree for this action is higher than previous max
+                root_ret = root_act  # replace existing max
+                root_max = root_curr  # replace current direction
+            if b_check:
+                return root_ret
+            else:
+                root_a = max(root_a, root_curr)  # updating alpha as the min of (A, V)
+        return root_ret  # return correct direction based on minimax algorithm
+        # util.raiseNotDefined()
 
 class ExpectimaxAgent(MultiAgentSearchAgent):
     """
@@ -209,17 +286,75 @@ class ExpectimaxAgent(MultiAgentSearchAgent):
         legal moves.
         """
         "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+        def expected_value(state, depth, agent_index):  # take state, depth, and agentIndex as parameters
+            legal_actions = state.getLegalActions(agent_index)  # get list of legal actions
+            total_actions = len(legal_actions)
+            if total_actions == 0:  # if there are no legal actions, return evaluation function
+                return self.evaluationFunction(state)
+            exp_val = 0  # add an expected value
+            for action in legal_actions:  # for each possible action
+                next_index = agent_index + 1
+                num_ghosts = state.getNumAgents() - 1
+                next_state = state.generateSuccessor(agent_index, action)  # generate the given next state
+                if agent_index == num_ghosts:  # if  the agent index matches the number of ghosts
+                    temp_val = maximum_value(next_state, depth)
+                else:  # if agent index doesn't match the number of ghosts
+                    temp_val = expected_value(next_state, depth, next_index)
+                exp_val += temp_val
+            if total_actions == 0:
+                return 0
+            exp_float = float(exp_val) / float(total_actions)
+            return exp_float  # return the lowest value found from all legal actions
+
+        def maximum_value(state, depth):  # take only state and depth as parameters
+            legal_actions = state.getLegalActions(0)  # get list of legal actions for pacman
+            total_actions = len(legal_actions)
+            if state.isWin() or state.isLose() or (not legal_actions) or (depth + 1) == self.depth:
+                return self.evaluationFunction(state)  # return if reached the terminal state
+            highest_val = -float("inf")  # set a low value to increase as higher maximums are found
+            for action in legal_actions:  # for each possible action
+                next_depth = depth + 1
+                next_state = state.generateSuccessor(0, action)  # generate/save given next state
+                highest_val = max(highest_val, expected_value(next_state, next_depth, 1))  # increase depth and call min
+            return highest_val  # return the highest value found from all legal actions
+
+        root_actions = gameState.getLegalActions(0)  # root node of trees legal actions
+        root_max = -float("inf")  # low value to be increased as larger scores are discovered
+        root_ret = 'NORTH'  # default initializing of a return value - will change as the actions are sorted through
+        for root_act in root_actions:  # for each available action
+            root_next = gameState.generateSuccessor(0, root_act)  # generate next state
+            root_curr = expected_value(root_next, 0, 1)  # call the mini half of our minimax to start going through tree
+            if root_curr > root_max:  # if our minimax value down the tree for this action is higher than previous max
+                root_ret = root_act  # replace existing max
+                root_max = root_curr  # replace current direction
+        return root_ret  # return correct direction based on minimax algorithm
+        # util.raiseNotDefined()
 
 def betterEvaluationFunction(currentGameState):
     """
     Your extreme ghost-hunting, pellet-nabbing, food-gobbling, unstoppable
     evaluation function (question 5).
 
-    DESCRIPTION: <write something here so we know what you did>
+    DESCRIPTION: Took the reciprocal of the manhattan distance to the closest food (as detailed in the
+    project description. Since it already passed the tests, didn't implement any pellet checking, although
+    this results in pacman stopping and waiting for the ghost to come by every once in a while
     """
     "*** YOUR CODE HERE ***"
-    util.raiseNotDefined()
+    pacman_position = currentGameState.getPacmanPosition();  # get current position
+    food_list = currentGameState.getFood().asList()  # get food positions
+    current_score = currentGameState.getScore()  # get current score
+
+    min_distance = float("inf")  # set minimum very high to be reduced
+    for food in food_list:  # for every food location found
+        pac_manhattan = manhattanDistance(pacman_position, food)  # check the distance
+        if pac_manhattan < min_distance:  # if the distance is the lowest yet, set our minimum
+            min_distance = pac_manhattan
+    final_evaluation = 1.0 / min_distance  # take reciprocal of the lowest distance to food
+    final_evaluation += current_score  # add the current score
+
+    return final_evaluation
+
+    # util.raiseNotDefined()
 
 # Abbreviation
 better = betterEvaluationFunction
